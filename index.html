@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>JSON Diff Tool</title>
+
+    <!-- JSON diff & formatter library ── ES-module version -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsondiffpatch@0.7.3/lib/formatters/styles/html.min.css" crossorigin="anonymous">
+
+    <style>
+        body, html {
+            margin: 0 0 2vh;
+            height: 95%;
+            font-family: system-ui, sans-serif;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            padding: .75rem 1rem;
+            background: #263238;
+            color: #fafafa;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .toolbar select, .toolbar button, .toolbar label {
+            font-size: .9rem;
+            outline: none;
+        }
+
+        .toolbar button {
+            cursor: pointer;
+            padding: .4rem .8rem;
+        }
+
+        .push-right {
+            margin-left: auto;
+        }
+
+        .container {
+            display: flex;
+            height: calc(100% - 54px); /* toolbar height compensation */
+        }
+
+        .pane {
+            width: 48%;
+            height: 100%;
+            padding: .5rem;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: .5rem;
+        }
+
+        textarea {
+            resize: none;
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            font-family: monospace;
+            font-size: .9rem;
+            line-height: 1.4;
+            padding: .5rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .diff-area {
+            width: 98%;
+            overflow: auto;
+            padding: 1rem;
+            margin-left: 0.5rem;
+            border: 1px solid #ccc;
+            background: #fafafa;
+            font-size: .9rem;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .error {
+            color: #d32f2f;
+            margin-bottom: .5rem;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ────────  TOP TOOLBAR  ──────── -->
+<div class="toolbar">
+    <label>Beautify:
+        <select id="indent-select">
+            <option value="2">2 spaces</option>
+            <option value="4" selected>4 spaces</option>
+        </select>
+    </label>
+
+    <button id="btn-beautify">Beautify both</button>
+    <button id="btn-sort">Sort keys A→Z</button>
+
+    <label class="push-right">
+        <input type="checkbox" id="chk-ignore-arr-order">
+        Ignore array order
+    </label>
+    <label>
+        <input type="checkbox" id="chk-show-unchanged" checked>
+        Show unchanged values
+    </label>
+
+    <button id="btn-diff" style="background:#03a9f4;color:#fff;border:none;border-radius:4px;">
+        Show diff
+    </button>
+</div>
+
+<!-- ────────  MAIN EDIT AREA  ──────── -->
+<div class="container">
+    <!-- LEFT JSON -->
+    <div class="pane">
+        <div>
+            <input type="file" accept=".json" id="file-left"/>
+            <span class="error hidden" id="err-left"></span>
+        </div>
+        <textarea id="ta-left" placeholder="Paste or load LEFT JSON here"></textarea>
+    </div>
+
+    <!-- RIGHT JSON -->
+    <div class="pane">
+        <div>
+            <input type="file" accept=".json" id="file-right"/>
+            <span class="error hidden" id="err-right"></span>
+        </div>
+        <textarea id="ta-right" placeholder="Paste or load RIGHT JSON here"></textarea>
+    </div>
+</div>
+
+<!-- ────────  DIFF OUTPUT  ──────── -->
+<div class="diff-area hidden" id="diff-output"></div>
+
+<!-- ────────  SCRIPT  ──────── -->
+<script type="module">
+    import * as jsondiffpatch from 'https://cdn.jsdelivr.net/npm/jsondiffpatch@0.7.3/+esm';
+    import * as formatter from 'https://cdn.jsdelivr.net/npm/jsondiffpatch@0.7.3/lib/formatters/html.js';
+    // ------- helpers --------------------------------------------------------
+    const qs = sel => document.querySelector(sel);
+    const parseJSONSafe = (txt) => {
+        try {
+            return [JSON.parse(txt), null];
+        } catch (e) {
+            return [null, e.message];
+        }
+    };
+    const deepSort = obj => {
+        if (Array.isArray(obj)) return obj.map(deepSort);
+        if (obj && typeof obj === 'object') {
+            return Object.keys(obj).sort().reduce((acc, k) => {
+                acc[k] = deepSort(obj[k]);
+                return acc;
+            }, {});
+        }
+        return obj;
+    };
+    const showError = (elem, msg) => {
+        elem.textContent = msg;
+        elem.classList.toggle('hidden', !msg);
+    };
+
+    // ------- DOM refs -------------------------------------------------------
+    const taLeft = qs('#ta-left');
+    const taRight = qs('#ta-right');
+    const diffEl = qs('#diff-output');
+    const indentSelect = qs('#indent-select');
+    const chkIgnoreArr = qs('#chk-ignore-arr-order');
+    const chkShowUnchanged = qs('#chk-show-unchanged');
+    const errLeft = qs('#err-left');
+    const errRight = qs('#err-right');
+
+    // ------- file upload ----------------------------------------------------
+    const bindFileLoader = (inputElem, textArea) => {
+        inputElem.addEventListener('change', e => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                textArea.value = ev.target.result;
+            };
+            reader.readAsText(file);
+        });
+    };
+    bindFileLoader(qs('#file-left'), taLeft);
+    bindFileLoader(qs('#file-right'), taRight);
+
+    // ------- toolbar actions ------------------------------------------------
+    qs('#btn-beautify').addEventListener('click', () => {
+        const space = Number(indentSelect.value);
+        [taLeft, taRight].forEach(ta => {
+            const [parsed, err] = parseJSONSafe(ta.value);
+            if (err) return; // skip invalid
+            ta.value = JSON.stringify(parsed, null, space);
+        });
+    });
+
+    qs('#btn-sort').addEventListener('click', () => {
+        [taLeft, taRight].forEach(ta => {
+            const [parsed, err] = parseJSONSafe(ta.value);
+            if (err) return;
+            ta.value = JSON.stringify(deepSort(parsed), null, Number(indentSelect.value));
+        });
+    });
+
+    qs('#btn-diff').addEventListener('click', () => {
+        // reset error messages
+        showError(errLeft, '');
+        showError(errRight, '');
+        diffEl.classList.add('hidden');
+        diffEl.innerHTML = '';
+
+        // parse
+        const [left, errL] = parseJSONSafe(taLeft.value);
+        const [right, errR] = parseJSONSafe(taRight.value);
+        if (errL || errR) {
+            if (errL) showError(errLeft, `Invalid JSON: ${errL}`);
+            if (errR) showError(errRight, `Invalid JSON: ${errR}`);
+            return;
+        }
+
+        // create-on-demand diff-patcher so options reflect current check-boxes
+        const jdp = jsondiffpatch.create({
+            arrays: {detectMove: chkIgnoreArr.checked, includeValueOnMove: false}
+        });
+        const delta = jdp.diff(deepSort(left), deepSort(right));
+
+        if (!delta) {
+            diffEl.innerHTML = '<strong>No differences found ✔</strong>';
+        } else {
+            diffEl.innerHTML = formatter.format(delta, left);
+            formatter.showUnchanged(chkShowUnchanged.checked, diffEl);
+        }
+        diffEl.classList.remove('hidden');
+        diffEl.scrollIntoView({behavior: 'smooth', block: 'start'});
+    });
+</script>
+</body>
+</html>
