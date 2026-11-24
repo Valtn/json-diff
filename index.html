@@ -5,9 +5,13 @@
     <title>JSON Diff Tool</title>
 
     <!-- JSON diff & formatter library ── ES-module version -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsondiffpatch@0.7.3/lib/formatters/styles/html.min.css" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsondiffpatch@0.7.7/lib/formatters/styles/html.min.css" crossorigin="anonymous">
 
     <style>
+        :root {
+            --font-size: .9rem;
+        }
+
         body, html {
             margin: 0 0 2vh;
             height: 95%;
@@ -26,14 +30,86 @@
             z-index: 10;
         }
 
+        .toolbar-title {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        @media (min-width: 1250px) {
+            .toolbar-title {
+                display: block;
+            }
+        }
+
         .toolbar select, .toolbar button, .toolbar label {
-            font-size: .9rem;
+            font-size: var(--font-size);
             outline: none;
+        }
+
+        .toolbar button, .indentation-control {
+            align-self: stretch;
+        }
+
+        .indentation-control {
+            display: flex;
+            align-items: center;
+            gap: .35rem;
+            position: relative;
+        }
+
+        .indentation-control::after {
+            content: "";
+            position: absolute;
+            inset-inline-end: .6rem;
+            top: 50%;
+            width: .35rem;
+            height: .35rem;
+            border: solid ButtonText;
+            border-width: 0 1px 1px 0;
+            transform: translateY(-65%) rotate(45deg);
+            pointer-events: none;
+        }
+
+        #indentation-select {
+            appearance: none;
+            align-self: stretch;
+            padding-inline: .4rem 1.4rem;
+            border-radius: 4px;
         }
 
         .toolbar button {
             cursor: pointer;
             padding: .4rem .8rem;
+            border-radius: 4px;
+            border: none;
+            transition: filter .15s ease, box-shadow .15s ease;
+        }
+
+        @media (hover: hover) {
+            .toolbar button:hover {
+                filter: brightness(.92);
+            }
+        }
+
+        .toolbar button:active {
+            filter: brightness(.82);
+            box-shadow: inset 0 1px 3px rgb(0 0 0 / 30%);
+        }
+
+        .toolbar label:has(> input[type="checkbox"]) {
+            display: flex;
+            align-items: center;
+            gap: .35rem;
+        }
+
+        .toolbar input[type="checkbox"] {
+            flex-shrink: 0;
+            margin: 0;
         }
 
         .push-right {
@@ -42,40 +118,133 @@
 
         .container {
             display: flex;
+            position: relative;
+            column-gap: 5px;
+            padding-inline: .5rem;
             height: calc(100% - 54px); /* toolbar height compensation */
         }
 
         .pane {
-            width: 48%;
+            flex: 1;
+            min-width: 0;
             height: 100%;
-            padding: .5rem;
+            padding-block: .5rem 1rem;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
             gap: .5rem;
         }
 
+        .pane input[type="file"] {
+            max-width: 100%;
+            font-size: var(--font-size);
+            vertical-align: middle;
+        }
+
+        .pane input[type="file"]::file-selector-button {
+            font-size: inherit;
+        }
+
+        .file-control {
+            line-height: 1.75rem;
+        }
+
+        .pane:first-child .file-control {
+            padding-inline-end: 1rem;
+        }
+
+        .pane:last-child .file-control {
+            padding-inline-start: 1.5rem;
+        }
+
+        .swap-button {
+            display: grid;
+            place-items: center;
+            position: absolute;
+            top: .5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2rem;
+            height: 1.75rem;
+            /* The arrow glyph sits below the center of its line box. */
+            padding: 0 0 .2em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fafafa;
+            color: #263238;
+            font-size: 1.25rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .swap-button:hover {
+            background: #eceff1;
+        }
+
         textarea {
             resize: none;
             flex: 1;
-            width: 100%;
             height: 100%;
             font-family: monospace;
-            font-size: .9rem;
+            font-size: var(--font-size);
             line-height: 1.4;
             padding: .5rem;
             border: 1px solid #ccc;
             border-radius: 4px;
         }
 
+        .diff-section {
+            padding-bottom: 2rem;
+        }
+
         .diff-area {
-            width: 98%;
+            --diff-indentation: 4;
             overflow: auto;
             padding: 1rem;
-            margin-left: 0.5rem;
+            margin-inline: .5rem;
             border: 1px solid #ccc;
             background: #fafafa;
-            font-size: .9rem;
+            font-size: var(--font-size);
+        }
+
+        .diff-area .jsondiffpatch-delta,
+        .diff-area .jsondiffpatch-delta pre {
+            font-size: inherit;
+        }
+
+        .diff-area .jsondiffpatch-delta ul.jsondiffpatch-node {
+            padding-inline-start: calc(var(--diff-indentation) * 1ch);
+        }
+
+        /* Align the key and value highlights and indent subsequent lines from the row's start. */
+        .diff-area li:is(.jsondiffpatch-added, .jsondiffpatch-deleted) > :is(.jsondiffpatch-property-name, .jsondiffpatch-value),
+        .diff-area li:is(.jsondiffpatch-added, .jsondiffpatch-deleted) > .jsondiffpatch-value > pre {
+            display: inline;
+            vertical-align: baseline;
+        }
+
+        /* Fill the line spacing without letting highlight colors spill into neighboring rows. */
+        .diff-area li:is(.jsondiffpatch-added, .jsondiffpatch-deleted) {
+            overflow-y: clip;
+        }
+
+        .diff-area li:is(.jsondiffpatch-added, .jsondiffpatch-deleted) > .jsondiffpatch-property-name,
+        .diff-area li:is(.jsondiffpatch-added, .jsondiffpatch-deleted) > .jsondiffpatch-value > pre {
+            padding-block: 2px;
+        }
+
+        .diff-area li:is(.jsondiffpatch-added, .jsondiffpatch-deleted) > .jsondiffpatch-property-name {
+            padding-right: 0;
+        }
+
+        /* The formatter measures arrow positions before its row-height animation ends.
+           Collapse hidden rows immediately and let visible rows take their full height. */
+        .diff-area .jsondiffpatch-unchanged-hidden :is(.jsondiffpatch-unchanged, .jsondiffpatch-movedestination > .jsondiffpatch-value) {
+            display: none;
+        }
+
+        .diff-area .jsondiffpatch-unchanged-visible :is(.jsondiffpatch-unchanged, .jsondiffpatch-movedestination > .jsondiffpatch-value) {
+            max-height: none;
         }
 
         .hidden {
@@ -92,8 +261,8 @@
 
 <!-- ────────  TOP TOOLBAR  ──────── -->
 <div class="toolbar">
-    <label>Beautify:
-        <select id="indent-select">
+    <label class="indentation-control">Indentation:
+        <select id="indentation-select">
             <option value="2">2 spaces</option>
             <option value="4" selected>4 spaces</option>
         </select>
@@ -102,16 +271,18 @@
     <button id="btn-beautify">Beautify both</button>
     <button id="btn-sort">Sort keys A→Z</button>
 
+    <h1 class="toolbar-title">Advanced JSON Diff</h1>
+
     <label class="push-right">
-        <input type="checkbox" id="chk-ignore-arr-order">
-        Ignore array order
+        <input type="checkbox" id="chk-show-array-moves" checked>
+        Show array move arrows
     </label>
     <label>
         <input type="checkbox" id="chk-show-unchanged" checked>
         Show unchanged values
     </label>
 
-    <button id="btn-diff" style="background:#03a9f4;color:#fff;border:none;border-radius:4px;">
+    <button id="btn-diff" style="background:#03a9f4;color:#fff;">
         Show diff
     </button>
 </div>
@@ -120,16 +291,18 @@
 <div class="container">
     <!-- LEFT JSON -->
     <div class="pane">
-        <div>
+        <div class="file-control">
             <input type="file" accept=".json" id="file-left"/>
             <span class="error hidden" id="err-left"></span>
         </div>
         <textarea id="ta-left" placeholder="Paste or load LEFT JSON here"></textarea>
     </div>
 
+    <button type="button" class="swap-button" id="btn-swap" aria-label="Swap left and right inputs" title="Swap left and right inputs">↔</button>
+
     <!-- RIGHT JSON -->
     <div class="pane">
-        <div>
+        <div class="file-control">
             <input type="file" accept=".json" id="file-right"/>
             <span class="error hidden" id="err-right"></span>
         </div>
@@ -138,12 +311,14 @@
 </div>
 
 <!-- ────────  DIFF OUTPUT  ──────── -->
-<div class="diff-area hidden" id="diff-output"></div>
+<div class="diff-section hidden">
+    <div class="diff-area" id="diff-output"></div>
+</div>
 
 <!-- ────────  SCRIPT  ──────── -->
 <script type="module">
-    import * as jsondiffpatch from 'https://cdn.jsdelivr.net/npm/jsondiffpatch@0.7.3/+esm';
-    import * as formatter from 'https://cdn.jsdelivr.net/npm/jsondiffpatch@0.7.3/lib/formatters/html.js';
+    import * as jsondiffpatch from 'https://cdn.jsdelivr.net/npm/jsondiffpatch@0.7.7/+esm';
+    import * as formatter from 'https://cdn.jsdelivr.net/npm/jsondiffpatch@0.7.7/lib/formatters/html.js';
     // ------- helpers --------------------------------------------------------
     const qs = sel => document.querySelector(sel);
     const parseJSONSafe = (txt) => {
@@ -163,6 +338,43 @@
         }
         return obj;
     };
+    const matchArrayItems = context => {
+        if (!context.leftIsArray) return;
+
+        const contentsByItem = new WeakMap();
+        const collectContents = items => {
+            const contents = new Set();
+            for (const item of items) {
+                if (item === null || typeof item !== 'object') continue;
+                // Normalize property order in the comparison key.
+                const json = JSON.stringify(deepSort(item));
+                contentsByItem.set(item, json);
+                contents.add(json);
+            }
+            return contents;
+        };
+        const leftContents = collectContents(context.left);
+        const rightContents = collectContents(context.right);
+
+        context.options = {
+            ...context.options,
+            objectHash: (item, index) => {
+                if (item === null) return 'null';
+                const contents = contentsByItem.get(item);
+                if (leftContents.has(contents) && rightContents.has(contents)) {
+                    return `contents:${contents}`;
+                }
+                for (const field of ['id', '_id', 'key', 'reference', 'reference_id']) {
+                    const value = item[field];
+                    if (typeof value === 'string' || typeof value === 'number') {
+                        return `${field}:${typeof value}:${value}`;
+                    }
+                }
+                // Compare unmatched items in place so their nested edits remain visible.
+                return `index:${index}`;
+            }
+        };
+    };
     const showError = (elem, msg) => {
         elem.textContent = msg;
         elem.classList.toggle('hidden', !msg);
@@ -171,35 +383,88 @@
     // ------- DOM refs -------------------------------------------------------
     const taLeft = qs('#ta-left');
     const taRight = qs('#ta-right');
+    const fileLeft = qs('#file-left');
+    const fileRight = qs('#file-right');
+    const diffSection = qs('.diff-section');
     const diffEl = qs('#diff-output');
-    const indentSelect = qs('#indent-select');
-    const chkIgnoreArr = qs('#chk-ignore-arr-order');
+    const indentationSelect = qs('#indentation-select');
+    const chkShowArrayMoves = qs('#chk-show-array-moves');
     const chkShowUnchanged = qs('#chk-show-unchanged');
     const errLeft = qs('#err-left');
     const errRight = qs('#err-right');
 
+    const sessionKey = 'json-diff.inputs';
+    try {
+        const savedInputs = JSON.parse(sessionStorage.getItem(sessionKey));
+        taLeft.value = savedInputs?.left ?? taLeft.value;
+        taRight.value = savedInputs?.right ?? taRight.value;
+    } catch {
+        // Keep the editors usable if session storage is unavailable.
+    }
+
+    const clearDiff = () => {
+        diffSection.classList.add('hidden');
+        diffEl.textContent = '';
+    };
+    const setJSONText = (textArea, value) => {
+        const previousValue = textArea.value;
+        textArea.value = value;
+        if (textArea.value !== previousValue) clearDiff();
+    };
+    taLeft.addEventListener('input', clearDiff);
+    taRight.addEventListener('input', clearDiff);
+
     // ------- file upload ----------------------------------------------------
-    const bindFileLoader = (inputElem, textArea) => {
+    const bindFileLoader = inputElem => {
         inputElem.addEventListener('change', e => {
             const file = e.target.files?.[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = ev => {
-                textArea.value = ev.target.result;
+            reader.onload = () => {
+                // The file may have moved to the other pane while it was loading.
+                if (fileLeft.files?.[0] === file) {
+                    setJSONText(taLeft, reader.result);
+                } else if (fileRight.files?.[0] === file) {
+                    setJSONText(taRight, reader.result);
+                }
             };
             reader.readAsText(file);
         });
     };
-    bindFileLoader(qs('#file-left'), taLeft);
-    bindFileLoader(qs('#file-right'), taRight);
+    bindFileLoader(fileLeft);
+    bindFileLoader(fileRight);
+
+    qs('#btn-swap').addEventListener('click', () => {
+        const leftText = taLeft.value;
+        setJSONText(taLeft, taRight.value);
+        setJSONText(taRight, leftText);
+        showError(errLeft, '');
+        showError(errRight, '');
+
+        const leftFiles = fileLeft.files;
+        const rightFiles = fileRight.files;
+        const leftFile = leftFiles?.[0];
+        const rightFile = rightFiles?.[0];
+        if (!leftFile && !rightFile) return;
+
+        try {
+            fileLeft.files = rightFiles;
+            fileRight.files = leftFiles;
+            if (fileLeft.files?.[0] === rightFile && fileRight.files?.[0] === leftFile) return;
+        } catch {
+            // Clear both selections if the browser rejects either assignment.
+        }
+        fileLeft.value = '';
+        fileRight.value = '';
+    });
 
     // ------- toolbar actions ------------------------------------------------
     qs('#btn-beautify').addEventListener('click', () => {
-        const space = Number(indentSelect.value);
+        const indentation = Number(indentationSelect.value);
         [taLeft, taRight].forEach(ta => {
             const [parsed, err] = parseJSONSafe(ta.value);
             if (err) return; // skip invalid
-            ta.value = JSON.stringify(parsed, null, space);
+            setJSONText(ta, JSON.stringify(parsed, null, indentation));
         });
     });
 
@@ -207,16 +472,43 @@
         [taLeft, taRight].forEach(ta => {
             const [parsed, err] = parseJSONSafe(ta.value);
             if (err) return;
-            ta.value = JSON.stringify(deepSort(parsed), null, Number(indentSelect.value));
+            setJSONText(ta, JSON.stringify(deepSort(parsed), null, Number(indentationSelect.value)));
         });
     });
 
+    const renderDiff = (delta, left, showUnchanged) => {
+        const indentation = Number(indentationSelect.value);
+        diffEl.style.setProperty('--diff-indentation', indentation);
+        diffEl.innerHTML = formatter.format(delta, left);
+        const renderedDiff = diffEl.firstElementChild;
+
+        // The formatter uses two spaces for each level in a pretty-printed value.
+        if (indentation === 4) {
+            for (const value of renderedDiff.querySelectorAll('.jsondiffpatch-value > pre')) {
+                if (value.textContent.includes('\n')) {
+                    value.textContent = value.textContent.replace(/^ +/gm, spaces => spaces + spaces);
+                }
+            }
+        }
+
+        // The formatter checks the source index for truthiness, so unedited destinations
+        // of moves from index 0 are marked as unchanged. Restore their destination class
+        // to keep their index labels visible when unchanged values are hidden.
+        for (const move of renderedDiff.querySelectorAll('.jsondiffpatch-moved[data-key="_0"]')) {
+            const destinationIndex = move.querySelector('.jsondiffpatch-moved-destination').textContent;
+            const destination = Array.from(move.parentElement.children)
+                .find(row => row.dataset.key === destinationIndex);
+            destination?.classList.replace('jsondiffpatch-unchanged', 'jsondiffpatch-movedestination');
+        }
+        // Let the formatter's 10 ms hide timer run before it finishes positioning arrows.
+        const delay = renderedDiff.querySelector('.jsondiffpatch-arrow') ? 20 : undefined;
+        formatter.showUnchanged(showUnchanged, renderedDiff, delay);
+    };
     qs('#btn-diff').addEventListener('click', () => {
         // reset error messages
         showError(errLeft, '');
         showError(errRight, '');
-        diffEl.classList.add('hidden');
-        diffEl.innerHTML = '';
+        clearDiff();
 
         // parse
         const [left, errL] = parseJSONSafe(taLeft.value);
@@ -229,17 +521,22 @@
 
         // create-on-demand diff-patcher so options reflect current check-boxes
         const jdp = jsondiffpatch.create({
-            arrays: {detectMove: chkIgnoreArr.checked, includeValueOnMove: false}
+            arrays: {detectMove: chkShowArrayMoves.checked}
         });
-        const delta = jdp.diff(deepSort(left), deepSort(right));
+        jdp.processor.pipe('diff').before('arrays', matchArrayItems);
+        const delta = jdp.diff(left, right);
 
+        diffSection.classList.remove('hidden');
         if (!delta) {
-            diffEl.innerHTML = '<strong>No differences found ✔</strong>';
+            diffEl.innerHTML = '<strong>✔ No differences found</strong>';
         } else {
-            diffEl.innerHTML = formatter.format(delta, left);
-            formatter.showUnchanged(chkShowUnchanged.checked, diffEl);
+            renderDiff(delta, left, chkShowUnchanged.checked);
         }
-        diffEl.classList.remove('hidden');
+        try {
+            sessionStorage.setItem(sessionKey, JSON.stringify({left: taLeft.value, right: taRight.value}));
+        } catch {
+            // Keep the diff visible if session storage is unavailable or full.
+        }
         diffEl.scrollIntoView({behavior: 'smooth', block: 'start'});
     });
 </script>
